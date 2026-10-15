@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UFO 피규어 뽑기 시뮬레이터</title>
+<style>
+:root {
+  --bg: #120d1d;
+  --panel: rgba(28, 20, 44, 0.92);
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #f4f0ff;
+  --muted: #a99fc4;
+  --pink: #ff4fa8;
+  --cyan: #45d6ff;
+  --yellow: #ffd23d;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; overflow: hidden; }
+#app { display: grid; grid-template-columns: 1fr 320px; height: 100%; }
+#stage-wrap { position: relative; min-width: 0; }
+#view { width: 100%; height: 100%; display: block; touch-action: none; }
+button, select { font: inherit; color: inherit; }
+.hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; color: var(--muted); }
+.chip b { color: var(--text); font-size: 15px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+#status { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); background: rgba(0,0,0,.55);
+  padding: 6px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; pointer-events: none; }
+#status:empty { display: none; }
+.views { position: absolute; right: 12px; top: 58px; display: flex; flex-direction: column; gap: 6px; }
+.views button { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+.views button.on { border-color: var(--cyan); color: var(--cyan); }
+.controls { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 18px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px 18px; }
+.arcade { width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer; font-size: 30px; font-weight: 900; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #8a7aa8, #3d3352); box-shadow: 0 6px 0 #1d1628, inset 0 -4px 10px rgba(0,0,0,.4);
+  user-select: none; -webkit-user-select: none; touch-action: none; transition: transform .05s; }
+.arcade small { display: block; font-size: 11px; font-weight: 600; }
+.arcade.lit { background: radial-gradient(circle at 35% 30%, #ff9ccc, var(--pink)); box-shadow: 0 6px 0 #8f1f59, 0 0 24px rgba(255,79,168,.7); }
+#btn2.lit { background: radial-gradient(circle at 35% 30%, #a9eeff, #1fa8d6); box-shadow: 0 6px 0 #0d5a75, 0 0 24px rgba(69,214,255,.7); }
+.arcade:active { transform: translateY(4px); box-shadow: 0 2px 0 #1d1628; }
+.coins { display: flex; flex-direction: column; gap: 6px; }
+.coin { border: 1px solid var(--yellow); background: rgba(255,210,61,.12); color: var(--yellow); border-radius: 10px; padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; }
+.coin:hover { background: rgba(255,210,61,.25); }
+.keys { font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px; }
+aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+aside h1 { font-size: 18px; margin: 0; }
+aside h2 { font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+aside select { width: 100%; padding: 8px; border-radius: 8px; background: #241a38; border: 1px solid var(--line); }
+#stagedesc { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.45; }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; margin-bottom: 8px; }
+.slider input { grid-column: 1 / 3; width: 100%; accent-color: var(--pink); }
+.slider b { font-weight: 600; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1; background: #2c2145; border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; font-size: 13px; }
+.btn:hover:not(:disabled) { border-color: var(--pink); }
+.btn:disabled { opacity: .4; cursor: default; }
+.tiny { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.modal { position: fixed; inset: 0; background: rgba(5,3,10,.7); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.modal[hidden] { display: none; }
+.card { background: #1d1530; border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; }
+.card h3 { margin: 0 0 10px; }
+.card ul { padding-left: 18px; line-height: 1.6; font-size: 14px; }
+.card kbd { background: #31264a; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+#win .card { text-align: center; }
+#win .big { font-size: 46px; font-weight: 900; background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan));
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+#win .stat { font-size: 16px; margin: 8px 0 16px; color: var(--muted); }
+#win .stat b { color: var(--text); }
+#toast { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(0,0,0,.75);
+  padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: .25s; pointer-events: none; white-space: nowrap; }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+#panel-toggle { display: none; }
+@media (max-width: 860px) {
+  #app { grid-template-columns: 1fr; }
+  aside { position: fixed; inset: auto 0 0 0; max-height: 70vh; transform: translateY(100%); transition: transform .25s; z-index: 5; border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; }
+  body.panel-open aside { transform: none; }
+  #panel-toggle { display: block; position: absolute; top: 12px; right: 12px; z-index: 6; }
+  .hud { right: 90px; }
+  .chip { font-size: 11px; padding: 4px 8px; }
+  .chip b { font-size: 13px; }
+  .views { top: 100px; }
+  #status { top: auto; bottom: 150px; font-size: 13px; }
+  .controls { left: 16px; right: 16px; transform: none; justify-content: space-between; gap: 10px; padding: 10px; }
+  .arcade { width: 72px; height: 72px; font-size: 26px; }
+  .keys { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage-wrap">
+    <canvas id="view"></canvas>
+    <div class="hud">
+      <div class="chip">크레딧<b id="credits">0</b></div>
+      <div class="chip">이번 박스<b id="plays">0판</b></div>
+      <div class="chip">총 사용<b id="spent">₩0</b></div>
+      <div class="chip">획득<b id="gets">0</b></div>
+    </div>
+    <button id="panel-toggle" class="btn">⚙ 세팅</button>
+    <div id="status"></div>
+    <div class="views">
+      <button data-view="front" class="on">정면</button>
+      <button data-view="side">오른쪽</button>
+      <button data-view="left">왼쪽</button>
+      <button data-view="top">위</button>
+      <button data-view="free">자유</button>
+    </div>
+    <div class="controls">
+      <div class="coins">
+        <button class="coin" id="coin1">₩1,000 (1회)</button>
+        <button class="coin" id="coin5">₩5,000 (6회)</button>
+      </div>
+      <div>
+        <button class="arcade" id="btn1">①<small>→ 오른쪽</small></button>
+        <div class="keys"><kbd>Z</kbd> / <kbd>→</kbd></div>
+      </div>
+      <div>
+        <button class="arcade" id="btn2">②<small>↑ 안쪽</small></button>
+        <div class="keys"><kbd>X</kbd> / <kbd>↑</kbd></div>
+      </div>
+    </div>
+    <div id="toast"></div>
+  </div>
+  <aside>
+    <div class="row" style="align-items:center">
+      <h1 style="flex:1">UFO 피규어 뽑기</h1>
+      <button class="btn" id="helpbtn" style="flex:0 0 auto">도움말</button>
+    </div>
+    <section>
+      <h2>기계 세팅</h2>
+      <select id="stage"></select>
+      <p id="stagedesc"></p>
+    </section>
+    <section>
+      <h2>연습 도구</h2>
+      <div class="row">
+        <button class="btn" id="undo" title="R">↶ 직전 판 되돌리기</button>
+        <button class="btn" id="staff">🙋 점원 호출(재배치)</button>
+      </div>
+      <p class="tiny">되돌리기는 박스를 바로 전 판 시작 위치로 되돌려요. 같은 상황을 여러 번 연습할 때 쓰세요.</p>
+    </section>
+    <section>
+      <h2>옵션</h2>
+      <label class="check"><input type="checkbox" id="laser"> 조준 레이저 표시 (실제 기계엔 없음)</label>
+      <label class="check"><input type="checkbox" id="stopbtn"> 하강 중 멈춤 버튼 (Space)</label>
+      <label class="check"><input type="checkbox" id="mute"> 소리 끄기</label>
+    </section>
+    <section>
+      <h2>세부 세팅 (바꾸면 '직접 세팅')</h2>
+      <label class="slider"><span>박스 크기</span><select id="boxsize" style="grid-column:1/3"></select></label>
+      <div id="sliders"></div>
+      <p class="tiny">봉 간격·박스 크기를 바꾸면 박스가 다시 놓여요. 집게 힘/마찰은 즉시 적용돼요.</p>
+    </section>
+    <section>
+      <button class="btn" id="resetstats" style="width:100%">통계 초기화</button>
+    </section>
+  </aside>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="card">
+    <h3>조작법</h3>
+    <ul>
+      <li><kbd>C</kbd> 또는 동전 버튼으로 돈 넣기 (1판 ₩1,000, ₩5,000은 6판)</li>
+      <li><b>① 버튼</b>(<kbd>Z</kbd>/<kbd>→</kbd>)을 <b>누르고 있는 동안</b> 집게가 오른쪽으로 이동, 떼면 멈춤. 한 번만 가능!</li>
+      <li><b>② 버튼</b>(<kbd>X</kbd>/<kbd>↑</kbd>)을 누르고 있는 동안 안쪽으로 이동, 떼면 집게가 벌어지며 내려감</li>
+      <li><kbd>V</kbd> 시점 전환 — 실제처럼 <b>옆에서 깊이를 확인</b>하는 습관을 들이세요. '자유' 시점은 마우스로 돌려볼 수 있어요.</li>
+      <li><kbd>R</kbd> 직전 판 되돌리기 (연습용)</li>
+    </ul>
+    <h3>다리 걸치기(하시와타시) 공략 기초</h3>
+    <ul>
+      <li>박스는 두 봉 위에 누워 있어요. 봉 사이 간격은 박스 <b>두께보다 넓고 폭보다 좁아서</b>, 박스를 <b>세로로 세워야</b> 떨어집니다.</li>
+      <li>집게 힘은 약해서 들어 올리기는 거의 안 돼요. <b>집게 끝으로 박스 모서리를 눌러</b> 기울이거나, 한쪽만 걸어서 <b>조금씩 밀어</b> 옮기는 게 정석.</li>
+      <li><b>세로 하메</b>: 박스 앞쪽(또는 뒤쪽) 모서리를 눌러 반대쪽이 들리게 → 박스가 봉 사이로 비스듬히 끼면, 높은 쪽 모서리를 눌러 밀어 넣기.</li>
+      <li>박스가 비틀어지면(옆으로 회전) 대각선 길이 때문에 더 안 떨어져요. 비틀림을 바로잡는 것도 기술!</li>
+      <li>집게가 박스에 닿으면 그 자리에서 하강을 멈춰요. 박스 위에 내려앉으면 더 이상 안 내려간다는 점을 이용하세요.</li>
+      <li>봉 밖 바닥판으로 박스가 넘어가면 점원 호출로 재배치하세요.</li>
+    </ul>
+    <button class="btn" id="help-close" style="width:100%">닫기</button>
+  </div>
+</div>
+
+<div class="modal" id="win" hidden>
+  <div class="card">
+    <div class="big">GET!!</div>
+    <div class="stat"><b id="win-plays"></b> 만에 <b id="win-cost"></b> 써서 획득!</div>
+    <button class="btn" id="win-next" style="width:100%">새 박스 올리기</button>
+  </div>
+</div>
+
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>
