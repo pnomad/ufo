@@ -34,7 +34,7 @@ const sliders = {
   risePower: { label: '올라갈 때 힘', min: 0, max: 100, step: 1, fmt: (v) => `${v}%` },
   push: { label: '내려 누르는 힘', min: 5, max: 100, step: 1, fmt: (v) => `${v}%` },
   barFriction: { label: '봉 마찰', min: 0.05, max: 0.8, step: 0.01, fmt: (v) => v.toFixed(2) },
-  depth: { label: '하강 제한(높을수록 덜 내려감)', min: 0, max: 1.5, step: 0.05, fmt: (v) => `${(v * 10).toFixed(1)}cm` },
+  depth: { label: '하강 한계 (집게 끝 최저 높이, 봉 윗면 기준)', min: -0.8, max: 1.5, step: 0.05, fmt: (v) => `${v > 0 ? '+' : ''}${(v * 10).toFixed(1)}cm` },
 };
 const sliderBox = $('#sliders');
 const sliderEls = {};
@@ -82,7 +82,7 @@ function readSliders() {
 
 function writeSliders(s) {
   for (const [key, row] of Object.entries(sliderEls)) {
-    const v = s[key] ?? (key === 'depth' ? 0.7 : 0);
+    const v = s[key] ?? (key === 'depth' ? -0.15 : 0);
     row.querySelector('input').value = v;
     row.querySelector('b').textContent = sliders[key].fmt(v);
   }
@@ -96,7 +96,7 @@ function applyCustom() {
 
 function loadSettings(st) {
   currentStage = st;
-  sim.setup({ depth: 0.7, ...st, stopButton: $('#stopbtn').checked });
+  sim.setup({ depth: -0.15, ...st, stopButton: $('#stopbtn').checked });
   writeSliders(sim.settings);
   $('#stagedesc').textContent = st.desc;
   stats.playsThisBox = 0;

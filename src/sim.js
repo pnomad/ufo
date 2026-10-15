@@ -17,7 +17,7 @@ export const BAR = { y: 3.0, radius: 0.16, length: 8.6 };
 
 export const CLAW = {
   topY: 8.6, // pivot height when fully up
-  pivotX: -0.25, // hinge offset (scissor-style: each arm hinges past the center)
+  pivotX: 0.75, // hinges on the sides of the round head
   headRadius: 0.72,
   armLen: 2.85, // vertical reach of the arm below the hinge
   armThick: 0.13,
@@ -35,12 +35,12 @@ export const CLAW = {
 // SEGA-style bracket arm, in arm-local coordinates (origin = hinge) for the
 // right arm (side = +1); mirrored for the left arm. Closed pose: the arm runs
 // out sideways from the round head, then down and inward so the tips meet.
-// elbow (outer corner) and bottom of the long blade. The tips stay outside the
-// hinge line, so a prize hanging on them pries the arm open (like the real
-// thing) instead of locking it shut.
+// Elbow (outer corner) and bottom of the long blade, relative to the hinge.
+// The tips sit inward of the hinge, so a prize hanging on them pries the arm
+// open against the (weak) grip torque, like a real machine.
 export const ARM_JOINTS = [
-  [1.33, -0.12],
-  [0.69, -CLAW.armLen],
+  [0.35, -0.12],
+  [-0.33, -CLAW.armLen],
 ];
 
 export function armParts(side) {
@@ -56,7 +56,7 @@ export function armParts(side) {
     // long blade going down and slightly inward
     { half: [t / 2, len / 2 + t / 2, w / 2], pos: [(P1[0] + P2[0]) / 2, (P1[1] + P2[1]) / 2, 0], rot: Math.atan2(dx, -dy), kind: 'arm' },
     // inward hook at the tip (爪)
-    { half: [0.17, 0.07, w / 2], pos: [P2[0] - 0.1, P2[1] + 0.06, 0], rot: 0.45, kind: 'tip' },
+    { half: [0.17, 0.07, w / 2], pos: [P2[0] - 0.09, P2[1] + 0.08, 0], rot: 0.85, kind: 'tip' },
   ];
   return parts.map((p) => ({
     ...p,
@@ -96,37 +96,37 @@ export const STAGES = [
     id: 'bridge-easy',
     name: '다리 걸치기 · 연습',
     desc: '봉 간격이 넓고 집게 힘도 좋은 연습용 세팅. 한쪽 집게로 박스 뒤쪽을 들어 보자.',
-    box: 'normal', gap: 1.85, splay: 0, closePower: 70, risePower: 55, push: 55, barFriction: 0.25,
+    box: 'normal', gap: 1.85, splay: 0, closePower: 70, risePower: 55, push: 75, barFriction: 0.22,
   },
   {
     id: 'bridge',
     name: '다리 걸치기 · 보통',
     desc: '가장 흔한 매장 세팅. 뒤쪽을 한쪽 집게로 들어 앞을 봉 사이로 떨군 뒤, 들린 뒤쪽을 눌러 세로로 끼우자.',
-    box: 'normal', gap: 1.62, splay: 0, closePower: 45, risePower: 30, push: 45, barFriction: 0.3,
+    box: 'normal', gap: 1.62, splay: 0, closePower: 45, risePower: 30, push: 65, barFriction: 0.27,
   },
   {
     id: 'bridge-hard',
     name: '다리 걸치기 · 짠물',
     desc: '간격 좁고 집게는 들어 올리는 순간 힘이 빠지는 짠 세팅.',
-    box: 'normal', gap: 1.58, splay: 0, closePower: 45, risePower: 28, push: 40, barFriction: 0.34,
+    box: 'normal', gap: 1.58, splay: 0, closePower: 45, risePower: 25, push: 55, barFriction: 0.32,
   },
   {
     id: 'hachi',
     name: '팔(八)자 봉',
     desc: '봉이 오른쪽으로 갈수록 벌어짐. 박스를 넓은 쪽으로 밀어 보내자.',
-    box: 'normal', gap: 1.45, splay: 0.05, closePower: 45, risePower: 28, push: 45, barFriction: 0.25,
+    box: 'normal', gap: 1.45, splay: 0.05, closePower: 45, risePower: 28, push: 65, barFriction: 0.25,
   },
   {
     id: 'big',
     name: '대형 박스',
     desc: '무겁고 큰 박스. 한 번에 안 되니 조금씩 밀어서 기울이자.',
-    box: 'big', gap: 2.4, splay: 0, closePower: 85, risePower: 55, push: 65, barFriction: 0.25,
+    box: 'big', gap: 2.15, splay: 0, closePower: 75, risePower: 45, push: 75, barFriction: 0.25,
   },
   {
     id: 'random',
     name: '랜덤 피규어',
     desc: '올릴 때마다 박스 크기와 무게중심이 달라요. 무게중심이 쏠린 쪽은 쉽게 내려가니 반대쪽을 들어 보자.',
-    box: 'random', gap: 1.62, splay: 0, closePower: 50, risePower: 30, push: 50, barFriction: 0.3,
+    box: 'random', gap: 1.62, splay: 0, closePower: 45, risePower: 30, push: 65, barFriction: 0.27,
   },
 ];
 
@@ -292,7 +292,7 @@ export class UfoSim {
     }
     this.deck = { top: deckTop, inner: zc + r + 0.35 };
     // Lowest pivot height: open claw tips stop a bit above the bar tops.
-    this.minY = BAR.y + r + (s.depth ?? 0.7) + CLAW.armLen * Math.cos(CLAW.openAngle);
+    this.minY = BAR.y + r + (s.depth ?? -0.15) + CLAW.armLen * Math.cos(CLAW.openAngle);
     this.resetBox();
     this.resetClaw();
     this.won = false;
@@ -371,7 +371,7 @@ export class UfoSim {
 
   // power 0..100 -> hinge torque. Tip force = torque / armLen.
   torqueFromPower(p) {
-    return (p / 100) * 55 * CLAW.armLen;
+    return (p / 100) * 35 * CLAW.armLen;
   }
 
   // --------------------------------------------------------------- control
@@ -431,13 +431,19 @@ export class UfoSim {
     const open = CLAW.openAngle;
     const closed = CLAW.closedAngle;
     const tgt = closed + (open - closed) * this.armTarget;
-    for (const arm of this.arms) {
+    const loose = this.state === 'rise' || this.state === 'return';
+    this.arms.forEach((arm, i) => {
       // left arm (side -1) opens with negative angle, right arm with positive
-      const desired = arm.side * tgt;
+      let desired = arm.side * tgt;
+      if (loose && this.holdAngles) {
+        // never squeeze tighter than where the arm stopped on the prize
+        const held = arm.side * Math.max(arm.side * this.holdAngles[i], tgt);
+        desired = held + arm.side * this.loosen;
+      }
       const err = desired - this.armAngle(arm);
       const tau = clamp(400 * err - 15 * arm.angularVelocity.z, -this.armTorque, this.armTorque);
       arm.torque.z += tau; // cleared by cannon after every step
-    }
+    });
   }
 
   // Upward contact force acting on the claw (head + arms). When this beats the
@@ -507,16 +513,21 @@ export class UfoSim {
         break;
       case 'rise':
         this.armTarget = 0;
-        // grip weakens shortly after the claw starts going up
+        // Grip weakens shortly after the claw starts going up: torque drops and
+        // the return springs let the arms open a little from where they were
+        // holding (the classic "arms loosen on the way up").
         {
+          if (this.stateTime === dt) this.holdAngles = this.arms.map((a) => this.armAngle(a));
           const k = clamp(this.stateTime / 0.35, 0, 1);
           this.armTorque = this.torqueFromPower(s.closePower + (s.risePower - s.closePower) * k);
+          this.loosen = k * (1 - s.risePower / 100) * 0.15;
         }
         if (h.position.y < CLAW.topY) v.y = CLAW.upSpeed;
         else if (this.stateTime > 0.3) this.setState('return');
         break;
       case 'return': {
         this.armTorque = this.torqueFromPower(s.risePower);
+        this.loosen = (1 - s.risePower / 100) * 0.15;
         const dx = CLAW.home.x - h.position.x;
         const dz = CLAW.home.z - h.position.z;
         const d = Math.hypot(dx, dz);

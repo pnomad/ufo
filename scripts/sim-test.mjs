@@ -53,7 +53,8 @@ if (isMain) {
   // The claw must actually reach the box and move it.
   sim.setup(STAGES.find((s) => s.id === 'bridge-easy'));
   const p0 = sim.box.position.clone();
-  for (let i = 0; i < 4; i++) play(sim, 0.15 + (i % 2 ? 0.9 : -0.9), -0.8);
+  // one arm on the back end of the box, like STEP 1 of the SEGA guide
+  for (const [x, z] of [[-1.8, -0.9], [2.0, -0.9], [-1.8, -0.7], [2.0, -0.7]]) play(sim, x, z);
   const moved = sim.box.position.vsub(p0).length() + Math.abs(sim.box.quaternion.x);
   check(moved > 0.05 || sim.won, `bridge-easy: claw moves the box (${moved.toFixed(2)})`);
   process.exit(failed ? 1 : 0);
