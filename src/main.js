@@ -28,7 +28,7 @@ custom.textContent = '직접 세팅';
 stageSel.append(custom);
 
 const sliders = {
-  gap: { label: '봉 간격', min: 1.2, max: 1.9, step: 0.01, fmt: (v) => `${(v * 10).toFixed(1)}cm`, rebuild: true },
+  gap: { label: '봉 간격', min: 1.2, max: 2.4, step: 0.01, fmt: (v) => `${(v * 10).toFixed(1)}cm`, rebuild: true },
   splay: { label: '봉 벌어짐(八자)', min: 0, max: 0.1, step: 0.005, fmt: (v) => `${((v * 180) / Math.PI).toFixed(1)}°`, rebuild: true },
   closePower: { label: '집는 힘', min: 5, max: 100, step: 1, fmt: (v) => `${v}%` },
   risePower: { label: '올라갈 때 힘', min: 0, max: 100, step: 1, fmt: (v) => `${v}%` },
@@ -82,7 +82,7 @@ function readSliders() {
 
 function writeSliders(s) {
   for (const [key, row] of Object.entries(sliderEls)) {
-    const v = s[key] ?? (key === 'depth' ? 0.35 : 0);
+    const v = s[key] ?? (key === 'depth' ? 0.7 : 0);
     row.querySelector('input').value = v;
     row.querySelector('b').textContent = sliders[key].fmt(v);
   }
@@ -96,7 +96,7 @@ function applyCustom() {
 
 function loadSettings(st) {
   currentStage = st;
-  sim.setup({ depth: 0.35, ...st, stopButton: $('#stopbtn').checked });
+  sim.setup({ depth: 0.7, ...st, stopButton: $('#stopbtn').checked });
   writeSliders(sim.settings);
   $('#stagedesc').textContent = st.desc;
   stats.playsThisBox = 0;
@@ -114,6 +114,7 @@ stageSel.addEventListener('change', () => {
 
 $('#stopbtn').addEventListener('change', (e) => (sim.settings.stopButton = e.target.checked));
 $('#laser').addEventListener('change', (e) => (view.laser.visible = e.target.checked));
+$('#showcom').addEventListener('change', (e) => view.setShowCom(e.target.checked));
 $('#mute').addEventListener('change', (e) => sound.setMuted(e.target.checked));
 
 // ----------------------------------------------------------------- game flow
@@ -184,7 +185,7 @@ $('#staff').addEventListener('click', () => {
   if (!['idle', 'ready'].includes(sim.state)) return;
   const st = sim.state;
   lastSnapshot = null;
-  sim.resetBox();
+  sim.resetBox(true);
   sim.resetClaw();
   if (st === 'ready') sim.startPlay();
   toast('점원: "처음 위치로 다시 놓아 드렸어요~"');

@@ -17,59 +17,116 @@ export const BAR = { y: 3.0, radius: 0.16, length: 8.6 };
 
 export const CLAW = {
   topY: 8.6, // pivot height when fully up
-  pivotX: 0.3, // hinge offset from head center
-  armLen: 3.0,
-  armThick: 0.12,
-  armWidth: 0.42, // along z
-  tipLen: 0.32, // inward claw length
-  tipThick: 0.12,
-  openAngle: 0.62, // rad (~36 deg)
-  closedAngle: -0.02, // tips just meet in the middle
+  pivotX: -0.25, // hinge offset (scissor-style: each arm hinges past the center)
+  headRadius: 0.72,
+  armLen: 2.85, // vertical reach of the arm below the hinge
+  armThick: 0.13,
+  armWidth: 0.4, // along z
+  openAngle: 0.6, // rad (~34 deg)
+  closedAngle: -0.03, // tips just meet in the middle
   moveSpeed: 2.6, // horizontal dm/s
   downSpeed: 2.2,
   upSpeed: 2.2,
-  rangeX: [-2.3, 2.3],
+  rangeX: [-2.2, 2.2],
   rangeZ: [-2.4, 2.4],
-  home: { x: -2.3, z: 2.4 },
+  home: { x: -2.2, z: 2.4 },
 };
 
-// Box placed lying flat: thin side vertical, long side along x, depth along z.
+// SEGA-style bracket arm, in arm-local coordinates (origin = hinge) for the
+// right arm (side = +1); mirrored for the left arm. Closed pose: the arm runs
+// out sideways from the round head, then down and inward so the tips meet.
+// elbow (outer corner) and bottom of the long blade. The tips stay outside the
+// hinge line, so a prize hanging on them pries the arm open (like the real
+// thing) instead of locking it shut.
+export const ARM_JOINTS = [
+  [1.33, -0.12],
+  [0.69, -CLAW.armLen],
+];
+
+export function armParts(side) {
+  const t = CLAW.armThick;
+  const w = CLAW.armWidth;
+  const [P1, P2] = ARM_JOINTS;
+  const dx = P2[0] - P1[0];
+  const dy = P2[1] - P1[1];
+  const len = Math.hypot(dx, dy);
+  const parts = [
+    // upper horizontal bar from the hinge to the elbow
+    { half: [(P1[0] + 0.05) / 2, t / 2, w / 2], pos: [(P1[0] - 0.05) / 2, P1[1] / 2, 0], rot: Math.atan2(P1[1], P1[0]), kind: 'arm' },
+    // long blade going down and slightly inward
+    { half: [t / 2, len / 2 + t / 2, w / 2], pos: [(P1[0] + P2[0]) / 2, (P1[1] + P2[1]) / 2, 0], rot: Math.atan2(dx, -dy), kind: 'arm' },
+    // inward hook at the tip (爪)
+    { half: [0.17, 0.07, w / 2], pos: [P2[0] - 0.1, P2[1] + 0.06, 0], rot: 0.45, kind: 'tip' },
+  ];
+  return parts.map((p) => ({
+    ...p,
+    pos: [side * p.pos[0], p.pos[1], p.pos[2]],
+    rot: side * p.rot,
+  }));
+}
+
+// Box lying flat with the window on top: long side front-to-back (z) so it
+// spans the two bars, width along x, thin side vertical.
+// com = centre of mass offset from the box centre. Figures are usually
+// heavier at the base, which sits toward the front (+z) of the window.
 export const BOX_PRESETS = {
-  normal: { w: 2.6, h: 1.2, d: 2.15, mass: 0.7, label: '일반 피규어 박스' },
-  big: { w: 3.0, h: 1.5, d: 2.5, mass: 1.1, label: '대형 피규어 박스' },
-  small: { w: 2.0, h: 1.0, d: 1.8, mass: 0.45, label: '소형 피규어 박스' },
+  normal: { w: 1.7, h: 1.1, d: 2.7, mass: 0.7, com: [0, -0.08, 0.25], label: '일반 피규어 박스' },
+  big: { w: 2.1, h: 1.4, d: 3.2, mass: 1.1, com: [0.05, -0.1, 0.35], label: '대형 피규어 박스' },
+  small: { w: 1.4, h: 0.9, d: 2.2, mass: 0.45, com: [0, -0.05, 0.15], label: '소형 피규어 박스' },
+  random: { label: '랜덤 (매번 다른 박스·무게중심)' },
 };
+
+// A random figure box that still fits the current bar gap.
+export function randomBox(gap, rnd = Math.random) {
+  const r = (a, b) => a + (b - a) * rnd();
+  const h = r(0.85, Math.min(1.5, gap - 0.3));
+  const d = r(Math.max(2.2, gap + 0.75), Math.max(2.4, gap + 1.5));
+  const w = r(1.3, 2.2);
+  const vol = w * h * d;
+  return {
+    w, h, d,
+    mass: +(0.12 * vol + r(-0.1, 0.25)).toFixed(2),
+    com: [r(-0.18, 0.18), r(-0.2, 0.08), r(-0.25, 0.5) * (d / 2.7)],
+    label: '랜덤 박스',
+  };
+}
 
 export const STAGES = [
   {
     id: 'bridge-easy',
     name: '다리 걸치기 · 연습',
-    desc: '봉 간격이 넓고 집게 힘도 좋은 연습용 세팅.',
-    box: 'normal', gap: 1.62, splay: 0, closePower: 70, risePower: 55, push: 55, barFriction: 0.25,
+    desc: '봉 간격이 넓고 집게 힘도 좋은 연습용 세팅. 한쪽 집게로 박스 뒤쪽을 들어 보자.',
+    box: 'normal', gap: 1.85, splay: 0, closePower: 70, risePower: 55, push: 55, barFriction: 0.25,
   },
   {
     id: 'bridge',
     name: '다리 걸치기 · 보통',
-    desc: '가장 흔한 매장 세팅. 앞/뒤 모서리를 눌러 세로로 끼우는(세로 하메) 게 정석.',
-    box: 'normal', gap: 1.48, splay: 0, closePower: 45, risePower: 30, push: 45, barFriction: 0.3,
+    desc: '가장 흔한 매장 세팅. 뒤쪽을 한쪽 집게로 들어 앞을 봉 사이로 떨군 뒤, 들린 뒤쪽을 눌러 세로로 끼우자.',
+    box: 'normal', gap: 1.62, splay: 0, closePower: 45, risePower: 30, push: 45, barFriction: 0.3,
   },
   {
     id: 'bridge-hard',
     name: '다리 걸치기 · 짠물',
     desc: '간격 좁고 집게는 들어 올리는 순간 힘이 빠지는 짠 세팅.',
-    box: 'normal', gap: 1.34, splay: 0, closePower: 28, risePower: 8, push: 32, barFriction: 0.45,
+    box: 'normal', gap: 1.58, splay: 0, closePower: 45, risePower: 28, push: 40, barFriction: 0.34,
   },
   {
     id: 'hachi',
     name: '팔(八)자 봉',
     desc: '봉이 오른쪽으로 갈수록 벌어짐. 박스를 넓은 쪽으로 밀어 보내자.',
-    box: 'normal', gap: 1.3, splay: 0.06, closePower: 45, risePower: 28, push: 45, barFriction: 0.25,
+    box: 'normal', gap: 1.45, splay: 0.05, closePower: 45, risePower: 28, push: 45, barFriction: 0.25,
   },
   {
     id: 'big',
     name: '대형 박스',
     desc: '무겁고 큰 박스. 한 번에 안 되니 조금씩 밀어서 기울이자.',
-    box: 'big', gap: 1.75, splay: 0, closePower: 55, risePower: 35, push: 55, barFriction: 0.3,
+    box: 'big', gap: 2.4, splay: 0, closePower: 85, risePower: 55, push: 65, barFriction: 0.25,
+  },
+  {
+    id: 'random',
+    name: '랜덤 피규어',
+    desc: '올릴 때마다 박스 크기와 무게중심이 달라요. 무게중심이 쏠린 쪽은 쉽게 내려가니 반대쪽을 들어 보자.',
+    box: 'random', gap: 1.62, splay: 0, closePower: 50, risePower: 30, push: 50, barFriction: 0.3,
   },
 ];
 
@@ -100,6 +157,10 @@ export class UfoSim {
     world.solver.iterations = 30;
     world.solver.tolerance = 1e-5;
     world.allowSleep = true;
+    // cannon-es limits the friction *impulse* per contact to mu * |frictionGravity| * m,
+    // applied once per contact point. Scale so a box resting on the bars behaves
+    // like Coulomb friction (calibrated on a tilted-gravity slope test).
+    world.frictionGravity = new CANNON.Vec3(0, G * DT * 0.25, 0);
 
     this.mat = {
       box: new CANNON.Material('box'),
@@ -114,7 +175,7 @@ export class UfoSim {
       return c;
     };
     this.barContact = cm(this.mat.box, this.mat.bar, 0.3);
-    cm(this.mat.box, this.mat.arm, 0.4);
+    cm(this.mat.box, this.mat.arm, 0.3);
     cm(this.mat.box, this.mat.glass, 0.1);
     cm(this.mat.box, this.mat.floor, 0.5, 0.05);
     cm(this.mat.arm, this.mat.bar, 0.3);
@@ -148,7 +209,7 @@ export class UfoSim {
       collisionFilterMask: GROUP.BOX | GROUP.STATIC,
       material: this.mat.arm,
     }));
-    head.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.35, 0.5)), new CANNON.Vec3(0, 0.4, 0));
+    head.addShape(new CANNON.Sphere(CLAW.headRadius), new CANNON.Vec3(0, 0.3, 0));
     head.position.set(CLAW.home.x, CLAW.topY, CLAW.home.z);
     head.allowSleep = false;
     world.addBody(head);
@@ -161,20 +222,15 @@ export class UfoSim {
         material: this.mat.arm,
         collisionFilterGroup: GROUP.ARM,
         collisionFilterMask: GROUP.BOX | GROUP.STATIC,
-        angularDamping: 0.6,
-        linearDamping: 0.1,
+        angularDamping: 0.05,
+        linearDamping: 0.05,
       });
       arm.allowSleep = false;
-      const L = CLAW.armLen;
-      arm.addShape(
-        new CANNON.Box(new CANNON.Vec3(CLAW.armThick / 2, L / 2, CLAW.armWidth / 2)),
-        new CANNON.Vec3(0, -L / 2, 0),
-      );
-      // inward-pointing claw tip (爪)
-      arm.addShape(
-        new CANNON.Box(new CANNON.Vec3(CLAW.tipLen / 2, CLAW.tipThick / 2, CLAW.armWidth / 2)),
-        new CANNON.Vec3(-side * (CLAW.tipLen / 2 - CLAW.armThick / 2), -L + CLAW.tipThick / 2, 0),
-      );
+      for (const p of armParts(side)) {
+        const q = new CANNON.Quaternion();
+        q.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), p.rot);
+        arm.addShape(new CANNON.Box(new CANNON.Vec3(...p.half)), new CANNON.Vec3(...p.pos), q);
+      }
       arm.position.set(head.position.x + side * CLAW.pivotX, head.position.y, head.position.z);
       arm.side = side;
       world.addBody(arm);
@@ -184,7 +240,6 @@ export class UfoSim {
         axisA: new CANNON.Vec3(0, 0, 1),
         axisB: new CANNON.Vec3(0, 0, 1),
       });
-      hinge.enableMotor();
       world.addConstraint(hinge);
       this.arms.push(arm);
       this.hinges.push(hinge);
@@ -237,15 +292,21 @@ export class UfoSim {
     }
     this.deck = { top: deckTop, inner: zc + r + 0.35 };
     // Lowest pivot height: open claw tips stop a bit above the bar tops.
-    this.minY = BAR.y + r + (s.depth ?? 0.35) + CLAW.armLen * Math.cos(CLAW.openAngle);
+    this.minY = BAR.y + r + (s.depth ?? 0.7) + CLAW.armLen * Math.cos(CLAW.openAngle);
     this.resetBox();
     this.resetClaw();
     this.won = false;
   }
 
-  resetBox() {
+  // keep = put the same box back (staff re-placement) instead of a new one
+  resetBox(keep = false) {
     const s = this.settings;
-    const dims = (this.boxDims = BOX_PRESETS[s.box] || BOX_PRESETS.normal);
+    const dims = (this.boxDims =
+      keep && this.boxDims
+        ? this.boxDims
+        : s.box === 'random'
+          ? randomBox(s.gap)
+          : BOX_PRESETS[s.box] || BOX_PRESETS.normal);
     if (this.box) this.world.removeBody(this.box);
     const box = (this.box = new CANNON.Body({
       mass: dims.mass,
@@ -254,8 +315,10 @@ export class UfoSim {
       linearDamping: 0.02,
       angularDamping: 0.05,
     }));
-    box.addShape(new CANNON.Box(new CANNON.Vec3(dims.w / 2, dims.h / 2, dims.d / 2)));
-    box.position.set(0.15, BAR.y + BAR.radius + dims.h / 2 + 0.01, 0);
+    // body origin = centre of mass, so the shape is shifted the other way
+    const [cx, cy, cz] = dims.com;
+    box.addShape(new CANNON.Box(new CANNON.Vec3(dims.w / 2, dims.h / 2, dims.d / 2)), new CANNON.Vec3(-cx, -cy, -cz));
+    box.position.set(0.15 + cx, BAR.y + BAR.radius + dims.h / 2 + 0.01 + cy, cz);
     box.sleepSpeedLimit = 0.05;
     box.sleepTimeLimit = 0.6;
     this.world.addBody(box);
@@ -269,7 +332,7 @@ export class UfoSim {
   snapshot() {
     const b = this.box;
     return {
-      box: this.settings.box,
+      dims: this.boxDims,
       p: b.position.clone(),
       q: b.quaternion.clone(),
       v: b.velocity.clone(),
@@ -279,7 +342,7 @@ export class UfoSim {
 
   restore(snap) {
     if (!snap) return;
-    if (snap.box !== this.settings.box) return;
+    if (snap.dims !== this.boxDims) return;
     const b = this.box;
     b.position.copy(snap.p);
     b.quaternion.copy(snap.q);
@@ -308,7 +371,7 @@ export class UfoSim {
 
   // power 0..100 -> hinge torque. Tip force = torque / armLen.
   torqueFromPower(p) {
-    return (p / 100) * 80 * CLAW.armLen;
+    return (p / 100) * 55 * CLAW.armLen;
   }
 
   // --------------------------------------------------------------- control
@@ -362,18 +425,18 @@ export class UfoSim {
     return 2 * Math.atan2(q.z, q.w);
   }
 
+  // Torque-limited PD control of each arm around its hinge. armTorque is the
+  // actual maximum torque, which is what makes the grip weak like a real machine.
   updateArms() {
     const open = CLAW.openAngle;
     const closed = CLAW.closedAngle;
     const tgt = closed + (open - closed) * this.armTarget;
-    for (let i = 0; i < 2; i++) {
-      const arm = this.arms[i];
+    for (const arm of this.arms) {
       // left arm (side -1) opens with negative angle, right arm with positive
       const desired = arm.side * tgt;
-      const ang = this.armAngle(arm);
-      const w = clamp(10 * (desired - ang), -3.5, 3.5);
-      this.hinges[i].setMotorSpeed(-w);
-      this.hinges[i].setMotorMaxForce(this.armTorque);
+      const err = desired - this.armAngle(arm);
+      const tau = clamp(400 * err - 15 * arm.angularVelocity.z, -this.armTorque, this.armTorque);
+      arm.torque.z += tau; // cleared by cannon after every step
     }
   }
 

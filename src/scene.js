@@ -1,7 +1,7 @@
 // three.js visuals for the machine. Reads body poses from UfoSim every frame.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { CAB, BAR, CLAW } from './sim.js';
+import { CAB, BAR, CLAW, ARM_JOINTS, armParts } from './sim.js';
 
 const BOX_THEMES = [
   { a: '#ff5fa2', b: '#7a2cff', title: 'MAGICAL ☆ STAR', sub: '프리미엄 피규어', hair: '#ffd84d', suit: '#ff5fa2' },
@@ -107,30 +107,30 @@ function boxFaceTextures(theme, dims) {
     ctx.lineWidth = Math.max(4, W * 0.012);
     ctx.strokeRect(ctx.lineWidth, ctx.lineWidth, W - ctx.lineWidth * 2, H - ctx.lineWidth * 2);
   };
-  // top (largest) face: window with the figure lying inside
+  const fitText = (ctx, text, x, y, maxW, size, weight) => {
+    let f = size;
+    ctx.font = `${weight} ${f}px system-ui, sans-serif`;
+    while (ctx.measureText(text).width > maxW && f > 8) {
+      f -= 2;
+      ctx.font = `${weight} ${f}px system-ui, sans-serif`;
+    }
+    ctx.fillText(text, x, y);
+  };
+  // top (largest) face: window showing the figure, title toward the player
   const top = make(dims.w, dims.d, (ctx, W, H) => {
     bg(ctx, W, H);
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    roundRect(ctx, W * 0.06, H * 0.1, W * 0.56, H * 0.8, 24);
+    roundRect(ctx, W * 0.1, H * 0.06, W * 0.8, H * 0.7, 24);
     ctx.fill();
     ctx.fillStyle = 'rgba(190,220,255,0.55)';
-    roundRect(ctx, W * 0.075, H * 0.125, W * 0.53, H * 0.75, 18);
+    roundRect(ctx, W * 0.125, H * 0.075, W * 0.75, H * 0.665, 18);
     ctx.fill();
-    ctx.save();
-    ctx.translate(W * 0.34, H * 0.5);
-    ctx.rotate(-Math.PI / 2);
-    drawFigure(ctx, 0, 0, H / 260, theme);
-    ctx.restore();
+    drawFigure(ctx, W * 0.5, H * 0.42, (H * 0.6) / 200, theme);
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = `900 ${Math.round(H * 0.11)}px system-ui, sans-serif`;
-    ctx.save();
-    ctx.translate(W * 0.81, H * 0.5);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(theme.title, 0, -H * 0.02);
-    ctx.font = `700 ${Math.round(H * 0.07)}px system-ui, sans-serif`;
-    ctx.fillText(theme.sub, 0, H * 0.1);
-    ctx.restore();
+    ctx.textBaseline = 'middle';
+    fitText(ctx, theme.title, W / 2, H * 0.84, W * 0.86, Math.round(W * 0.13), 900);
+    fitText(ctx, theme.sub, W / 2, H * 0.92, W * 0.8, Math.round(W * 0.08), 700);
   });
   const side = (w, h) =>
     make(w, h, (ctx, W, H) => {
@@ -138,13 +138,11 @@ function boxFaceTextures(theme, dims) {
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `900 ${Math.round(H * 0.28)}px system-ui, sans-serif`;
-      ctx.fillText(theme.title, W / 2, H * 0.42);
-      ctx.font = `700 ${Math.round(H * 0.16)}px system-ui, sans-serif`;
-      ctx.fillText('NOT FOR SALE · 경품 전용', W / 2, H * 0.75);
+      fitText(ctx, theme.title, W / 2, H * 0.42, W * 0.88, Math.round(H * 0.3), 900);
+      fitText(ctx, 'NOT FOR SALE · 경품 전용', W / 2, H * 0.76, W * 0.85, Math.round(H * 0.15), 700);
     });
   const plain = (w, h) => make(w, h, bg);
-  return [plain(dims.d, dims.h), plain(dims.d, dims.h), top, plain(dims.w, dims.d), side(dims.w, dims.h), side(dims.w, dims.h)];
+  return [side(dims.d, dims.h), side(dims.d, dims.h), top, plain(dims.w, dims.d), side(dims.w, dims.h), plain(dims.w, dims.h)];
 }
 
 export class MachineView {
@@ -177,7 +175,7 @@ export class MachineView {
       front: { pos: [0, 7.4, 18], target: [0, 5.3, 0] },
       side: { pos: [17, 7.4, 0.5], target: [0, 5.0, 0] },
       left: { pos: [-17, 7.4, 0.5], target: [0, 5.0, 0] },
-      top: { pos: [0, 19, 5], target: [0, 3.5, 0] },
+      top: { pos: [0, 19, 1.2], target: [0, 3.5, -0.2] },
     };
     this.setView('front');
     sim.on('boxreset', () => this.buildBox());
@@ -357,8 +355,9 @@ export class MachineView {
     const sim = this.sim;
     if (this.boxMesh) {
       this.scene.remove(this.boxMesh);
-      this.boxMesh.geometry.dispose();
-      for (const m of this.boxMesh.material) {
+      const old = this.boxMesh.children[0];
+      old.geometry.dispose();
+      for (const m of old.material) {
         m.map?.dispose();
         m.dispose();
       }
@@ -368,29 +367,42 @@ export class MachineView {
     const mats = boxFaceTextures(theme, dims).map(
       (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.45, metalness: 0.05 }),
     );
-    const mesh = (this.boxMesh = new THREE.Mesh(new THREE.BoxGeometry(dims.w, dims.h, dims.d), mats));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(dims.w, dims.h, dims.d), mats);
     mesh.castShadow = mesh.receiveShadow = true;
-    this.scene.add(mesh);
+    mesh.position.set(-dims.com[0], -dims.com[1], -dims.com[2]);
+    // the group origin is the centre of mass (= physics body origin)
+    const group = (this.boxMesh = new THREE.Group());
+    group.add(mesh);
+    const marker = (this.comMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 16, 12),
+      new THREE.MeshBasicMaterial({ color: '#ff2b55', depthTest: false }),
+    ));
+    marker.renderOrder = 10;
+    marker.visible = !!this.showCom;
+    group.add(marker);
+    this.scene.add(group);
     this.buildBars();
     this.sync();
   }
 
   buildClaw() {
-    const metal = new THREE.MeshStandardMaterial({ color: '#e6e8ef', metalness: 0.85, roughness: 0.22 });
-    const pink = new THREE.MeshStandardMaterial({ color: '#ff6fb5', metalness: 0.3, roughness: 0.35 });
-    const rubber = new THREE.MeshStandardMaterial({ color: '#2b2b33', roughness: 0.9 });
+    const white = new THREE.MeshStandardMaterial({ color: '#f4f6fa', metalness: 0.1, roughness: 0.35 });
+    const grey = new THREE.MeshStandardMaterial({ color: '#b7c1c9', metalness: 0.5, roughness: 0.35 });
+    const blue = new THREE.MeshStandardMaterial({ color: '#4f74e3', metalness: 0.25, roughness: 0.4 });
+    const tipMat = new THREE.MeshStandardMaterial({ color: '#8f9aa3', metalness: 0.4, roughness: 0.6 });
     const head = (this.headMesh = new THREE.Group());
-    // UFO-like housing
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 0.55, 32), pink);
-    body.position.y = 0.45;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), metal);
-    dome.position.y = 0.72;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 12, 40), metal);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.2;
-    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.2, 0.5), metal);
-    hub.position.y = 0.08;
-    for (const m of [body, dome, ring, hub]) {
+    // big round SEGA-style head
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(CLAW.headRadius, 40, 24), white);
+    ball.position.y = 0.3;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(CLAW.headRadius * 1.005, CLAW.headRadius * 1.005, 0.32, 40, 1, true), grey);
+    band.position.y = 0.45;
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.42, 0.2), white);
+    visor.position.set(0, 0.05, CLAW.headRadius * 0.82);
+    const visorIn = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.28, 0.05), grey);
+    visorIn.position.set(0, 0.05, CLAW.headRadius * 0.82 + 0.1);
+    const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.25, 16), grey);
+    hook.position.y = 1.08;
+    for (const m of [ball, band, visor, visorIn, hook]) {
       m.castShadow = true;
       head.add(m);
     }
@@ -398,17 +410,21 @@ export class MachineView {
     this.armMeshes = [];
     for (const side of [-1, 1]) {
       const g = new THREE.Group();
-      const L = CLAW.armLen;
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(CLAW.armThick, L, CLAW.armWidth), metal);
-      plate.position.y = -L / 2;
-      const tip = new THREE.Mesh(new THREE.BoxGeometry(CLAW.tipLen, CLAW.tipThick, CLAW.armWidth), rubber);
-      tip.position.set(-side * (CLAW.tipLen / 2 - CLAW.armThick / 2), -L + CLAW.tipThick / 2, 0);
-      const knuckle = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, CLAW.armWidth + 0.06, 12), metal);
-      knuckle.rotation.x = Math.PI / 2;
-      for (const m of [plate, tip, knuckle]) {
+      for (const p of armParts(side)) {
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(p.half[0] * 2, p.half[1] * 2, p.half[2] * 2),
+          p.kind === 'tip' ? tipMat : blue,
+        );
+        m.position.set(...p.pos);
+        m.rotation.z = p.rot;
         m.castShadow = true;
         g.add(m);
       }
+      // rounded elbow so the bracket looks bent rather than boxy
+      const elbow = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, CLAW.armWidth, 16), blue);
+      elbow.rotation.x = Math.PI / 2;
+      elbow.position.set(side * ARM_JOINTS[0][0], ARM_JOINTS[0][1], 0);
+      g.add(elbow);
       this.scene.add(g);
       this.armMeshes.push(g);
     }
@@ -424,6 +440,11 @@ export class MachineView {
     this.laser.geometry.translate(0, -0.5, 0);
     this.laser.visible = false;
     this.scene.add(this.laser);
+  }
+
+  setShowCom(on) {
+    this.showCom = on;
+    if (this.comMarker) this.comMarker.visible = on;
   }
 
   setView(name) {
@@ -458,8 +479,8 @@ export class MachineView {
       this.armMeshes[i].quaternion.copy(a.quaternion);
     });
     const topY = CAB.height - 0.8;
-    this.cable.position.set(h.x, h.y + 0.9, h.z);
-    this.cable.scale.y = Math.max(0.01, topY - h.y - 0.9);
+    this.cable.position.set(h.x, h.y + 1.2, h.z);
+    this.cable.scale.y = Math.max(0.01, topY - h.y - 1.2);
     this.gantry.position.x = h.x;
     this.trolley.position.set(h.x, CAB.height - 0.75, h.z);
     if (this.laser.visible) {
